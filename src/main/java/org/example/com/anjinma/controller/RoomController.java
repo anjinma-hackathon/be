@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.example.com.anjinma.dto.RoomRequest;
 import org.example.com.anjinma.dto.RoomResponse;
+import org.example.com.anjinma.dto.RoomInfoResponse;
 import org.example.com.anjinma.dto.JoinRoomResponse;
 import org.example.com.anjinma.service.RoomService;
 import org.springframework.http.HttpStatus;
@@ -33,12 +34,24 @@ public class RoomController {
      */
     @PostMapping
     @Operation(summary = "방 생성", description = "방을 생성하고 교수/학생 입장 코드를 발급합니다.",
-        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            required = true,
-            content = @Content(schema = @Schema(implementation = RoomRequest.class),
-                examples = @ExampleObject(name = "createRoom", value = "{\n  \"roomName\": \"알고리즘\"\n}"))))
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(schema = @Schema(implementation = RoomRequest.class),
+                            examples = @ExampleObject(name = "createRoom", value = "{\n  \"roomName\": \"알고리즘\"\n}"))))
     @ApiResponse(responseCode = "201", description = "생성됨",
-        content = @Content(schema = @Schema(implementation = RoomResponse.class)))
+            content = @Content(
+                    schema = @Schema(implementation = RoomResponse.class),
+                    examples = @ExampleObject(name = "createRoomResponse",
+                            value = """
+                                    {
+                                      "roomId": 1,
+                                      "roomName": "알고리즘",
+                                      "professorAuthCode": "ABC123",
+                                      "studentAuthCode": "XYZ789",
+                                      "wsEndpoint": "/ws/lecture",
+                                      "subscribeUrl": "/sub/rooms/1",
+                                      "publishUrl": "/pub/lecture/1"
+                                    }""")))
     public ResponseEntity<RoomResponse> createRoom(@RequestBody RoomRequest request) {
         RoomResponse response = roomService.createRoom(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -53,8 +66,8 @@ public class RoomController {
      */
     @GetMapping("/{roomId}")
     @Operation(summary = "방 조회", description = "roomId로 방 정보를 조회합니다.")
-    public ResponseEntity<RoomResponse> getRoom(@PathVariable @Parameter(description = "방 ID", example = "1") Long roomId) {
-        RoomResponse response = roomService.getRoomById(roomId);
+    public ResponseEntity<RoomInfoResponse> getRoom(@PathVariable @Parameter(description = "방 ID", example = "1") Long roomId) {
+        RoomInfoResponse response = roomService.getRoomById(roomId);
         return ResponseEntity.ok(response);
     }
 

@@ -4,6 +4,7 @@ import java.security.SecureRandom;
 import lombok.RequiredArgsConstructor;
 import org.example.com.anjinma.dto.RoomRequest;
 import org.example.com.anjinma.dto.RoomResponse;
+import org.example.com.anjinma.dto.RoomInfoResponse;
 import org.example.com.anjinma.dto.JoinRoomResponse;
 import org.example.com.anjinma.entity.Room;
 import org.example.com.anjinma.repository.RoomRepository;
@@ -47,15 +48,13 @@ public class RoomService {
     }
 
     @Transactional(readOnly = true)
-    public RoomResponse getRoomById(Long roomId) {
+    public RoomInfoResponse getRoomById(Long roomId) {
         Room room = roomRepository.findById(roomId)
             .orElseThrow(() -> new RuntimeException("Room not found with id: " + roomId));
 
-        return RoomResponse.builder()
+        return RoomInfoResponse.builder()
             .roomId(room.getId())
             .roomName(room.getRoomName())
-            .professorAuthCode(room.getProfessorAuthCode())
-            .studentAuthCode(room.getStudentAuthCode())
             .wsEndpoint("/ws/lecture")
             .subscribeUrl("/sub/rooms/" + room.getId())
             .publishUrl("/pub/lecture/" + room.getId())
@@ -68,16 +67,12 @@ public class RoomService {
             .map(room -> JoinRoomResponse.builder()
                 .roomId(room.getId())
                 .roomName(room.getRoomName())
-                .professorAuthCode(room.getProfessorAuthCode())
-                .studentAuthCode(room.getStudentAuthCode())
                 .role(JoinRoomResponse.Role.PROFESSOR)
                 .build())
             .or(() -> roomRepository.findByStudentAuthCode(code)
                 .map(room -> JoinRoomResponse.builder()
                     .roomId(room.getId())
                     .roomName(room.getRoomName())
-                    .professorAuthCode(room.getProfessorAuthCode())
-                    .studentAuthCode(room.getStudentAuthCode())
                     .role(JoinRoomResponse.Role.STUDENT)
                     .build()))
             .orElseThrow(() -> new RuntimeException("Invalid room code: " + code));

@@ -63,7 +63,7 @@ public class AttendanceService {
         Collection<Presence> values = room.values();
         List<StudentJoinMessage> result = new ArrayList<>(values.size());
         for (Presence p : values) {
-            result.add(new StudentJoinMessage(p.studentId, p.studentName));
+            result.add(new StudentJoinMessage(p.studentId, p.studentName, p.langCode));
         }
         return result;
     }
@@ -94,6 +94,7 @@ public class AttendanceService {
         final String studentName;
         final String sessionId;
         volatile long lastSeen;
+        volatile String langCode; // e.g., en, ja, ...
 
         Presence(String studentId, String studentName, String sessionId, long lastSeen) {
             this.studentId = studentId;
@@ -101,5 +102,19 @@ public class AttendanceService {
             this.sessionId = sessionId;
             this.lastSeen = lastSeen;
         }
+    }
+
+    public void setLanguage(Long roomId, String studentId, String langCode) {
+        Map<String, Presence> room = presence.get(roomId);
+        if (room == null) return;
+        Presence p = room.get(studentId);
+        if (p != null) p.langCode = langCode;
+    }
+
+    public String getLanguage(Long roomId, String studentId) {
+        Map<String, Presence> room = presence.get(roomId);
+        if (room == null) return null;
+        Presence p = room.get(studentId);
+        return p == null ? null : p.langCode;
     }
 }

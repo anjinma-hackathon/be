@@ -6,6 +6,7 @@ import org.example.com.anjinma.dto.StudentJoinMessage;
 import org.example.com.anjinma.dto.StudentListMessage;
 import org.example.com.anjinma.service.AttendanceService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
@@ -24,12 +25,15 @@ public class AttendanceHandler {
      */
     @MessageMapping("/attendance/{roomId}")
     public void handleStudentJoin(@DestinationVariable Long roomId,
-                                  @org.springframework.messaging.handler.annotation.Header("simpSessionId") String sessionId,
+                                  @Header("simpSessionId") String sessionId,
                                   StudentJoinMessage message) {
         if (message == null || message.getStudentId() == null || message.getStudentName() == null) {
             return;
         }
         attendanceService.join(roomId, message, sessionId);
+        if (message.getLanguage() != null && !message.getLanguage().isBlank()) {
+            attendanceService.setLanguage(roomId, message.getStudentId(), message.getLanguage());
+        }
         log.info("Student joined room {}: [{}] {}", roomId, message.getStudentId(), message.getStudentName());
         broadcastSnapshot(roomId);
     }
@@ -60,7 +64,7 @@ public class AttendanceHandler {
      */
     @MessageMapping("/attendance/{roomId}/ping")
     public void handlePing(@DestinationVariable Long roomId,
-                           @org.springframework.messaging.handler.annotation.Header("simpSessionId") String sessionId) {
+                           @Header("simpSessionId") String sessionId) {
         // roomId는 경로 바인딩을 위해 필요하며, 로그/추적에 활용할 수 있다.
         if (roomId == null) {
             return;
@@ -70,9 +74,9 @@ public class AttendanceHandler {
 
     private void broadcastSnapshot(Long roomId) {
         StudentListMessage snapshot = StudentListMessage.builder()
-            .type("snapshot")
-            .students(attendanceService.list(roomId))
-            .build();
+                .type("snapshot")
+                .students(attendanceService.list(roomId))
+                .build();
         messagingTemplate.convertAndSend("/sub/rooms/" + roomId + "/attendance", snapshot);
     }
 }
