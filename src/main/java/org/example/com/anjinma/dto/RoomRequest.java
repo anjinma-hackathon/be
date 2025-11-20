@@ -10,13 +10,13 @@ import org.example.com.anjinma.entity.Room;
 @AllArgsConstructor
 public class RoomRequest {
     private String roomName;
-    private String professorId;
+    // 교수/학생 인증 코드는 서버에서 생성
 
-    public Room toEntity(String authCode) {
+    public Room toEntity(String professorAuthCode, String studentAuthCode) {
         return Room.builder()
             .roomName(roomName)
-            .professorId(professorId)
-            .authCode(authCode)
+            .professorAuthCode(professorAuthCode)
+            .studentAuthCode(studentAuthCode)
             .build();
     }
 }

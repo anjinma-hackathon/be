@@ -7,7 +7,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+
 import java.time.LocalDateTime;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,11 +30,11 @@ public class Room {
     @Column(nullable = false, length = 100)
     private String roomName;
 
-    @Column(nullable = false, length = 50)
-    private String professorId;
+    @Column(nullable = false, unique = true, length = 6, updatable = false)
+    private String professorAuthCode;
 
-    @Column(nullable = false, unique = true, length = 6)
-    private String authCode;
+    @Column(nullable = false, unique = true, length = 6, updatable = false)
+    private String studentAuthCode;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
