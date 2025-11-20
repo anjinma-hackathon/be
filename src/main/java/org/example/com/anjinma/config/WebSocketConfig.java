@@ -27,11 +27,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.addEndpoint("/ws/lecture")
             .setAllowedOriginPatterns(
                 "https://anjinma.bluerack.org",
+                "https://anjinma-bak.bluerack.org",
                 "http://localhost:*",
                 "https://localhost:*",
                 "http://127.0.0.1:*"
-            )
-            .withSockJS();
+            );
     }
 
     // Raw WebSocket endpoint for real-time multi-output translation at "/ws"
