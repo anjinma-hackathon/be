@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class JoinRoomResponse {
+public class RoomInfoResponse {
 
     @Schema(description = "방 ID", example = "1")
     private Long roomId;
@@ -18,10 +18,13 @@ public class JoinRoomResponse {
     @Schema(description = "방 이름", example = "알고리즘")
     private String roomName;
 
-    @Schema(description = "역할", example = "PROFESSOR", allowableValues = {"PROFESSOR","STUDENT"})
-    private Role role; // PROFESSOR or STUDENT
+    @Schema(description = "STOMP 엔드포인트", example = "/ws/lecture")
+    private String wsEndpoint;
 
-    public enum Role {
-        PROFESSOR, STUDENT
-    }
+    @Schema(description = "구독 주소", example = "/sub/rooms/1")
+    private String subscribeUrl;
+
+    @Schema(description = "발행 주소", example = "/pub/lecture/1")
+    private String publishUrl;
 }
+
