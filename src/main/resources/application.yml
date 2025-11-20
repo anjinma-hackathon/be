@@ -11,6 +11,26 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
 
+  # Allow large PDF uploads (adjust as needed)
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+  # If any reactive codecs get used, raise in-memory limit
+  codec:
+    max-in-memory-size: 50MB
+
+  mvc:
+    async:
+      request-timeout: 1800s
+
+server:
+  tomcat:
+    # Avoid discarding large request bodies on error (optional)
+    max-swallow-size: -1
+    connection-timeout: 60s
+
 app:
   attendance:
     # 학생 최대 유휴 시간(초). 초과 시 자동 퇴장 처리

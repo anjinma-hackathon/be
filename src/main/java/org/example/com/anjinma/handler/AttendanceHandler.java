@@ -31,6 +31,9 @@ public class AttendanceHandler {
             return;
         }
         attendanceService.join(roomId, message, sessionId);
+        if (message.getLanguage() != null && !message.getLanguage().isBlank()) {
+            attendanceService.setLanguage(roomId, message.getStudentId(), message.getLanguage());
+        }
         log.info("Student joined room {}: [{}] {}", roomId, message.getStudentId(), message.getStudentName());
         broadcastSnapshot(roomId);
     }
