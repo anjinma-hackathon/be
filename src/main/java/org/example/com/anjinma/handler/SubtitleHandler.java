@@ -1,12 +1,20 @@
 package org.example.com.anjinma.handler;
 
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.com.anjinma.dto.StudentJoinMessage;
 import org.example.com.anjinma.dto.SubtitleMessage;
+import org.example.com.anjinma.service.AttendanceService;
+import org.example.com.anjinma.translation.Language;
+import org.example.com.anjinma.translation.OllamaService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import reactor.core.publisher.Flux;
 
 @Slf4j
 @Controller
@@ -14,6 +22,8 @@ import org.springframework.stereotype.Controller;
 public class SubtitleHandler {
 
     private final SimpMessagingTemplate messagingTemplate;
+    private final AttendanceService attendanceService;
+    private final OllamaService ollamaService;
 
     /**
      * Handle incoming subtitle messages from professor Endpoint: /pub/lecture/{roomId}
@@ -23,23 +33,63 @@ public class SubtitleHandler {
      */
     @MessageMapping("/lecture/{roomId}")
     public void handleSubtitle(@DestinationVariable Long roomId, SubtitleMessage message) {
-        log.info("Received subtitle for room {}: {}", roomId, message.getOriginalText());
+        String original = message == null ? null : message.getOriginalText();
+        if (original == null || original.isBlank()) {
+            return;
+        }
 
-        // TODO: Implement translation logic here
-        // For now, we'll use a placeholder for the translated text
-        // In production, this should call a translation service (e.g., Google Translate API, DeepL, etc.)
+        log.info("Received subtitle for room {}: {}", roomId, original);
 
-        // Temporary: Set translated text to be the same as original text
-        // Replace this with actual translation service call
-        message.setTranslatedText("[TRANSLATED] " + message.getOriginalText());
+        // 1) 원문 브로드캐스트(교수/공용 보기용). 번역은 별도 언어별 메시지로 팬아웃.
+        SubtitleMessage originalMsg = new SubtitleMessage(
+            message.getSourceLanguage(),
+            null,
+            original,
+            null
+        );
+        messagingTemplate.convertAndSend("/sub/rooms/" + roomId, originalMsg);
 
-        // Broadcast the subtitle message to all subscribers of this room
-        // Students subscribed to /sub/rooms/{roomId} will receive this message\
+        // 2) 현재 방에 있는 학생들의 언어 수집
+        List<StudentJoinMessage> students = attendanceService.list(roomId);
+        Set<String> languageCodes = students.stream()
+            .map(StudentJoinMessage::getLanguage)
+            .filter(code -> code != null && !code.isBlank())
+            .map(String::trim)
+            .map(String::toLowerCase)
+            .filter(code -> !"ko".equals(code))
+            .collect(Collectors.toSet());
 
-        //그러면 여기서 message를 번역해서 주면 되겠다.
+        if (languageCodes.isEmpty()) {
+            log.debug("No target languages present in room {}. Skipping translation.", roomId);
+            return;
+        }
 
-        messagingTemplate.convertAndSend("/sub/rooms/" + roomId, message);
+        // 3) 언어별 번역 스트림 수행 후, chunk 단위로 targetLanguage를 세팅하여 공용 채널로 브로드캐스트
+        for (String code : languageCodes) {
+            Language lang;
+            try {
+                lang = Language.fromCode(code);
+            } catch (IllegalArgumentException e) {
+                log.debug("Unsupported language code {} in room {} — skipping.", code, roomId);
+                continue;
+            }
 
-        log.info("Broadcasted subtitle to room {}", roomId);
+            Flux<String> stream = ollamaService.fetchTranslationStream(original, lang);
+            stream.subscribe(
+                chunk -> {
+                    if (chunk == null || chunk.isBlank()) return;
+                    SubtitleMessage translatedChunk = new SubtitleMessage(
+                        message.getSourceLanguage(),
+                        lang.code(),
+                        original,
+                        chunk
+                    );
+                    messagingTemplate.convertAndSend("/sub/rooms/" + roomId, translatedChunk);
+                },
+                ex -> log.warn("Translation stream failed for room {} lang {}: {}", roomId, code, ex.toString())
+            );
+        }
+
+        log.info("Started translation streams for room {} languages: {}", roomId, languageCodes);
     }
 }
