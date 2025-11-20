@@ -13,15 +13,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         config.enableSimpleBroker("/sub");
-
         config.setApplicationDestinationPrefixes("/pub");
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Register STOMP endpoint at "/ws/lecture"
         registry.addEndpoint("/ws/lecture")
-            .setAllowedOriginPatterns("*")  // Allow CORS from all origins
-            .withSockJS();  // Enable SockJS fallback options
+            .setAllowedOriginPatterns("*")
+            .withSockJS();
     }
 }

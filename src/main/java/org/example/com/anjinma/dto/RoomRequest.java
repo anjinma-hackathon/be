@@ -1,5 +1,6 @@
 package org.example.com.anjinma.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -9,6 +10,8 @@ import org.example.com.anjinma.entity.Room;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RoomRequest {
+
+    @Schema(description = "방 이름", example = "알고리즘")
     private String roomName;
     // 교수/학생 인증 코드는 서버에서 생성
 
