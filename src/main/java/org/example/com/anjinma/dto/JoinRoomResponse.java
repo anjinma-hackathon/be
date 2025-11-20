@@ -9,14 +9,15 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RoomResponse {
+public class JoinRoomResponse {
     private Long roomId;
     private String roomName;
     private String professorAuthCode;
     private String studentAuthCode;
+    private Role role; // PROFESSOR or STUDENT
 
-    // WebSocket connection info
-    private String wsEndpoint;      // WebSocket 연결 엔드포인트: "/ws/lecture"
-    private String subscribeUrl;    // 구독할 주소: "/sub/rooms/{roomId}"
-    private String publishUrl;      // 발행할 주소: "/pub/lecture/{roomId}"
+    public enum Role {
+        PROFESSOR, STUDENT
+    }
 }
+

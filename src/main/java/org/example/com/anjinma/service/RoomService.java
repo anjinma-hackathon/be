@@ -4,6 +4,7 @@ import java.security.SecureRandom;
 import lombok.RequiredArgsConstructor;
 import org.example.com.anjinma.dto.RoomRequest;
 import org.example.com.anjinma.dto.RoomResponse;
+import org.example.com.anjinma.dto.JoinRoomResponse;
 import org.example.com.anjinma.entity.Room;
 import org.example.com.anjinma.repository.RoomRepository;
 import org.springframework.stereotype.Service;
@@ -20,24 +21,25 @@ public class RoomService {
 
     @Transactional
     public RoomResponse createRoom(RoomRequest request) {
-        // Generate unique 6-digit auth code
-        String authCode = generateAuthCode();
+        // Generate unique 6-digit codes for professor and student
+        String professorAuthCode = generateUniqueProfessorCode();
+        String studentAuthCode = generateUniqueStudentCode();
 
-        // Ensure authCode is unique
-        while (roomRepository.findByAuthCode(authCode).isPresent()) {
-            authCode = generateAuthCode();
+        // Ensure professor and student codes are not identical for the same room
+        while (studentAuthCode.equals(professorAuthCode)) {
+            studentAuthCode = generateUniqueStudentCode();
         }
 
         // Create and save room entity
-        Room room = request.toEntity(authCode);
-
+        Room room = request.toEntity(professorAuthCode, studentAuthCode);
         Room savedRoom = roomRepository.save(room);
 
         // Build response with WebSocket connection info
         return RoomResponse.builder()
             .roomId(savedRoom.getId())
             .roomName(savedRoom.getRoomName())
-            .authCode(savedRoom.getAuthCode())
+            .professorAuthCode(savedRoom.getProfessorAuthCode())
+            .studentAuthCode(savedRoom.getStudentAuthCode())
             .wsEndpoint("/ws/lecture")
             .subscribeUrl("/sub/rooms/" + savedRoom.getId())
             .publishUrl("/pub/lecture/" + savedRoom.getId())
@@ -52,11 +54,33 @@ public class RoomService {
         return RoomResponse.builder()
             .roomId(room.getId())
             .roomName(room.getRoomName())
-            .authCode(room.getAuthCode())
+            .professorAuthCode(room.getProfessorAuthCode())
+            .studentAuthCode(room.getStudentAuthCode())
             .wsEndpoint("/ws/lecture")
             .subscribeUrl("/sub/rooms/" + room.getId())
             .publishUrl("/pub/lecture/" + room.getId())
             .build();
+    }
+
+    @Transactional(readOnly = true)
+    public JoinRoomResponse joinByCode(String code) {
+        return roomRepository.findByProfessorAuthCode(code)
+            .map(room -> JoinRoomResponse.builder()
+                .roomId(room.getId())
+                .roomName(room.getRoomName())
+                .professorAuthCode(room.getProfessorAuthCode())
+                .studentAuthCode(room.getStudentAuthCode())
+                .role(JoinRoomResponse.Role.PROFESSOR)
+                .build())
+            .or(() -> roomRepository.findByStudentAuthCode(code)
+                .map(room -> JoinRoomResponse.builder()
+                    .roomId(room.getId())
+                    .roomName(room.getRoomName())
+                    .professorAuthCode(room.getProfessorAuthCode())
+                    .studentAuthCode(room.getStudentAuthCode())
+                    .role(JoinRoomResponse.Role.STUDENT)
+                    .build()))
+            .orElseThrow(() -> new RuntimeException("Invalid room code: " + code));
     }
 
     private String generateAuthCode() {
@@ -65,5 +89,21 @@ public class RoomService {
             sb.append(AUTH_CODE_CHARS.charAt(random.nextInt(AUTH_CODE_CHARS.length())));
         }
         return sb.toString();
+    }
+
+    private String generateUniqueProfessorCode() {
+        String code = generateAuthCode();
+        while (roomRepository.existsByProfessorAuthCode(code)) {
+            code = generateAuthCode();
+        }
+        return code;
+    }
+
+    private String generateUniqueStudentCode() {
+        String code = generateAuthCode();
+        while (roomRepository.existsByStudentAuthCode(code)) {
+            code = generateAuthCode();
+        }
+        return code;
     }
 }
