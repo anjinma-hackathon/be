@@ -316,7 +316,18 @@ public class PdfService {
                     float targetY = tl.y + Math.max(fontSize, tl.h * 0.8f);
                     if (targetY > box.getHeight() - pageBottomMargin) targetY = box.getHeight() - pageBottomMargin;
                     cs.newLineAtOffset(tl.x, targetY);
-                    cs.showText(drawText);
+                    try {
+                        cs.showText(drawText);
+                    } catch (IllegalArgumentException enc) {
+                        // Fallback: replace non-ASCII with '?' and use Helvetica
+                        try {
+                            String ascii = drawText.replaceAll("[^\\x00-\\x7F]", "?");
+                            cs.setFont(PDType1Font.HELVETICA, fontSize);
+                            cs.showText(ascii);
+                        } catch (Exception ignore) {
+                            // give up on this line but keep PDF generation going
+                        }
+                    }
                     cs.endText();
                 }
             }
@@ -324,7 +335,7 @@ public class PdfService {
                 doc.save(baos);
                 return baos.toByteArray();
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Overlay translated lines failed", e);
             return srcPdf;
         }
@@ -553,7 +564,7 @@ public class PdfService {
     // Overlay translated text onto original PDF pages (preserves original graphics/images)
     public byte[] overlayTextOnOriginal(byte[] srcPdf, java.util.List<String> pageTexts) {
         try (PDDocument doc = PDDocument.load(srcPdf)) {
-            PDFont font = loadUnicodeFont(doc);
+            Fonts fonts = loadPreferredFonts(doc);
             float fontSize = 11f;
             float leading = 1.5f * fontSize;
             float margin = 50f;
@@ -573,7 +584,6 @@ public class PdfService {
                 float startY = box.getHeight() - margin;
 
                 try (PDPageContentStream cs = new PDPageContentStream(doc, page, PDPageContentStream.AppendMode.APPEND, true)) {
-                    cs.setFont(font, fontSize);
                     cs.setLeading(leading);
                     cs.beginText();
                     cs.newLineAtOffset(startX, startY);
@@ -581,7 +591,7 @@ public class PdfService {
 
                     String[] lines = text.split("\r?\n", -1);
                     for (String line : lines) {
-                        java.util.List<String> parts = wrapLine(line, font, fontSize, width);
+                        java.util.List<String> parts = wrapLine(line, fonts.latin, fontSize, width);
                         if (parts.isEmpty()) parts = java.util.List.of("");
                         for (String part : parts) {
                             if (curY - leading <= margin) {
@@ -590,12 +600,21 @@ public class PdfService {
                                 PDPage extra = new PDPage(box);
                                 doc.addPage(extra);
                                 try (PDPageContentStream cs2 = new PDPageContentStream(doc, extra)) {
-                                    cs2.setFont(font, fontSize);
                                     cs2.setLeading(leading);
                                     cs2.beginText();
                                     cs2.newLineAtOffset(startX, startY);
                                     curY = startY;
-                                    cs2.showText(part);
+                                    PDFont f2 = hasCjk(part) ? fonts.cjk : fonts.latin;
+                                    cs2.setFont(f2, fontSize);
+                                    try {
+                                        cs2.showText(part);
+                                    } catch (IllegalArgumentException enc) {
+                                        try {
+                                            String ascii = part.replaceAll("[^\\x00-\\x7F]", "?");
+                                            cs2.setFont(PDType1Font.HELVETICA, fontSize);
+                                            cs2.showText(ascii);
+                                        } catch (Exception ignore) {}
+                                    }
                                     cs2.newLine();
                                 }
                                 // advance to next page index position for subsequent content
@@ -603,7 +622,17 @@ public class PdfService {
                                 i++; // move index to this new page
                                 continue;
                             }
-                            cs.showText(part);
+                            PDFont f = hasCjk(part) ? fonts.cjk : fonts.latin;
+                            cs.setFont(f, fontSize);
+                            try {
+                                cs.showText(part);
+                            } catch (IllegalArgumentException enc) {
+                                try {
+                                    String ascii = part.replaceAll("[^\\x00-\\x7F]", "?");
+                                    cs.setFont(PDType1Font.HELVETICA, fontSize);
+                                    cs.showText(ascii);
+                                } catch (Exception ignore) {}
+                            }
                             cs.newLine();
                             curY -= leading;
                         }
@@ -617,7 +646,7 @@ public class PdfService {
                 doc.save(baos);
                 return baos.toByteArray();
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Overlay text on original PDF failed", e);
             return srcPdf;
         }
@@ -668,7 +697,10 @@ public class PdfService {
         // 1) Classpath first
         try {
             ClassPathResource latinRes = new ClassPathResource("fonts/NotoSans-Regular.ttf");
-            if (latinRes.exists()) latin = PDType0Font.load(doc, latinRes.getInputStream(), true);
+            if (latinRes.exists()) {
+                latin = PDType0Font.load(doc, latinRes.getInputStream(), true);
+                log.info("Loaded Latin font from classpath: {}", latinRes.getPath());
+            }
         } catch (Exception ignore) {
         }
         try {
@@ -687,6 +719,7 @@ public class PdfService {
                 ClassPathResource cjkResCp = new ClassPathResource(r);
                 if (cjkResCp.exists()) {
                     cjk = PDType0Font.load(doc, cjkResCp.getInputStream(), true);
+                    log.info("Loaded CJK font from classpath: {}", cjkResCp.getPath());
                     break;
                 }
             }
@@ -704,6 +737,7 @@ public class PdfService {
                 try {
                     if (Files.exists(Paths.get(p))) {
                         latin = PDType0Font.load(doc, Files.newInputStream(Paths.get(p)), true);
+                        log.info("Loaded Latin font from OS path: {}", p);
                         break;
                     }
                 } catch (Exception ignore) {
@@ -729,14 +763,21 @@ public class PdfService {
                 try {
                     if (Files.exists(Paths.get(p))) {
                         cjk = PDType0Font.load(doc, Files.newInputStream(Paths.get(p)), true);
+                        log.info("Loaded CJK font from OS path: {}", p);
                         break;
                     }
                 } catch (Exception ignore) {
                 }
             }
         }
-        if (latin == null) latin = PDType1Font.HELVETICA;
-        if (cjk == null) cjk = latin;
+        if (latin == null) {
+            latin = PDType1Font.HELVETICA;
+            log.warn("Latin font not found; falling back to Helvetica");
+        }
+        if (cjk == null) {
+            cjk = latin;
+            log.warn("CJK font not found; falling back to Latin font (may cause missing glyphs)");
+        }
         return new Fonts(latin, cjk);
     }
 
