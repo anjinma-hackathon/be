@@ -25,11 +25,20 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr-kor \
     tesseract-ocr-jpn \
     tesseract-ocr-chi-sim \
+    fontconfig \
  && rm -rf /var/lib/apt/lists/*
 
-# (선택) tessdata 위치 명시하고 싶으면 환경변수 추가
-# ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/4.00/
+# ─────────────────────────────────────────────
+# 커스텀 폰트 추가 (프로젝트 resources/fonts → 시스템 폰트 디렉토리)
+# ─────────────────────────────────────────────
+COPY src/main/resources/fonts /usr/share/fonts/truetype/custom/
 
+# 폰트 캐시 재생성
+RUN fc-cache -f -v
+
+# ─────────────────────────────────────────────
+# 앱 Jar 복사
+# ─────────────────────────────────────────────
 COPY --from=build /app/build/libs/*.jar app.jar
 
 EXPOSE 8080
